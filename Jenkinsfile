@@ -77,9 +77,7 @@ pipeline {
 
         stage('Archive artifacts') {
             steps {
-                node {
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-                }
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
 
@@ -102,7 +100,7 @@ pipeline {
 
     post {
         always {
-            node {
+            script {
                 if (fileExists('docker-compose.yml')) {
                     sh 'docker-compose down || true'
                 }
