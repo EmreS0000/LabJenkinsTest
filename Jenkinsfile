@@ -1,18 +1,10 @@
 pipeline {
-    agent {
-        docker {
-            image 'maven:3.9.4-eclipse-temurin-21'
-            args '-v $HOME/.m2:/root/.m2'
-        }
-    }
+    agent any
 
     environment {
-        // You can set these in Jenkins global/env or Credentials and expose here
-        DB_URL = credentials('DB_URL') ?: "${DB_URL}"
-        DB_USER = credentials('DB_USER') ?: "${DB_USER}"
-        DB_PASSWORD = credentials('DB_PASSWORD') ?: "${DB_PASSWORD}"
-        DOCKER_IMAGE = "${DOCKER_IMAGE}"
-        DOCKER_REGISTRY = "${DOCKER_REGISTRY}"
+        // Non-secret defaults (override in Jenkins job/agent as needed)
+        DOCKER_IMAGE = ''
+        DOCKER_REGISTRY = ''
     }
 
     options {
@@ -28,6 +20,12 @@ pipeline {
         }
 
         stage('Unit Test') {
+            agent {
+                docker {
+                    image 'maven:3.9.4-eclipse-temurin-21'
+                    args '-v $HOME/.m2:/root/.m2'
+                }
+            }
             steps {
                 sh 'mvn -B -DskipTests=false test'
             }
@@ -39,6 +37,12 @@ pipeline {
         }
 
         stage('Build (package)') {
+            agent {
+                docker {
+                    image 'maven:3.9.4-eclipse-temurin-21'
+                    args '-v $HOME/.m2:/root/.m2'
+                }
+            }
             steps {
                 sh 'mvn -B -DskipTests package'
             }
@@ -70,8 +74,25 @@ pipeline {
             when {
                 expression { return env.RUN_INTEGRATION == 'true' }
             }
+            agent {
+                docker {
+                    image 'maven:3.9.4-eclipse-temurin-21'
+                    args '-v $HOME/.m2:/root/.m2'
+                }
+            }
             steps {
-                sh 'mvn -B verify'
+                // Use Jenkins credentials to provide DB values securely.
+                // Expected credential IDs (add them to Jenkins Credentials as secret text):
+                // - DB_URL (secret text)
+                // - DB_USER (secret text)
+                // - DB_PASSWORD (secret text)
+                withCredentials([
+                    string(credentialsId: 'DB_URL', variable: 'DB_URL'),
+                    string(credentialsId: 'DB_USER', variable: 'DB_USER'),
+                    string(credentialsId: 'DB_PASSWORD', variable: 'DB_PASSWORD')
+                ]) {
+                    sh 'mvn -B verify -Dspring.datasource.url="$DB_URL" -Dspring.datasource.username="$DB_USER" -Dspring.datasource.password="$DB_PASSWORD"'
+                }
             }
             post {
                 always {
